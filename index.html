@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON to YAML Batch Converter</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- js-yaml library for conversion -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+
+    <!-- jszip library for creating zip files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!-- Inter font from Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Custom styles to enhance the UI */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar for a cleaner look */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+        /* Style for the file input button */
+        .custom-file-upload {
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+        /* Animation for file items appearing */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .file-item {
+            animation: fadeIn 0.3s ease-in-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 flex flex-col min-h-screen">
+
+    <div class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 flex flex-col">
+        <!-- Header Section -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl sm:text-5xl font-bold text-white mb-2">JSON to YAML Batch Converter</h1>
+            <p class="text-lg text-gray-400">Upload multiple JSON files, convert them to YAML, and download them individually or as a ZIP.</p>
+        </header>
+
+        <main class="flex-grow flex flex-col bg-gray-800 rounded-2xl shadow-2xl overflow-hidden">
+            <!-- File Upload Section -->
+            <div id="upload-area" class="p-8 border-b-2 border-gray-700">
+                <div class="flex items-center justify-center w-full">
+                    <label for="file-upload" class="flex flex-col items-center justify-center w-full h-48 border-2 border-gray-600 border-dashed rounded-lg custom-file-upload bg-gray-700/50 hover:bg-gray-700/80">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <svg class="w-10 h-10 mb-4 text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
+                            <p class="mb-2 text-sm text-gray-400"><span class="font-semibold">Click to upload</span> or drag and drop</p>
+                            <p class="text-xs text-gray-500">Select one or more JSON files</p>
+                        </div>
+                        <input id="file-upload" type="file" class="hidden" multiple accept=".json" />
+                    </label>
+                </div> 
+            </div>
+
+            <!-- Conversion and Download Section -->
+            <div id="results-area" class="flex-grow p-8 flex flex-col overflow-hidden hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold text-white">Converted Files</h2>
+                    <div class="space-x-2">
+                         <button id="clear-all-btn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200">
+                            Clear All
+                        </button>
+                        <button id="download-zip-btn" disabled class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 disabled:bg-gray-600 disabled:cursor-not-allowed">
+                            Download All as ZIP
+                        </button>
+                    </div>
+                </div>
+                <div id="file-list" class="flex-grow overflow-y-auto pr-2 -mr-2 space-y-3">
+                    <!-- Converted files will be dynamically added here -->
+                </div>
+                <div id="status-message" class="mt-4 text-center text-gray-400"></div>
+            </div>
+             <div id="placeholder-area" class="flex-grow p-8 flex flex-col items-center justify-center text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-files mb-4" viewBox="0 0 16 16"><path d="M13 0H6a2 2 0 0 0-2 2 2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2 2 2 0 0 0 2-2V2a2 2 0 0 0-2-2m0 13V4a2 2 0 0 0-2-2H5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1M3 4a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>
+                <p>Your converted files will appear here.</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-center py-4">
+        <p class="text-gray-500">Made by <a href="https://github.com/navuxneeth" target="_blank" rel="noopener noreferrer" class="font-medium text-indigo-400 hover:text-indigo-300 transition-colors">Navaneeth Sankar K P</a></p>
+    </footer>
+
+    <script>
+        const fileUpload = document.getElementById('file-upload');
+        const fileList = document.getElementById('file-list');
+        const downloadZipBtn = document.getElementById('download-zip-btn');
+        const clearAllBtn = document.getElementById('clear-all-btn');
+        const statusMessage = document.getElementById('status-message');
+        const uploadArea = document.getElementById('upload-area');
+        const resultsArea = document.getElementById('results-area');
+        const placeholderArea = document.getElementById('placeholder-area');
+        
+        let convertedFiles = [];
+
+        // --- Drag and Drop functionality ---
+        const dropArea = document.getElementById('upload-area');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.add('bg-gray-700'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.remove('bg-gray-700'), false);
+        });
+
+        dropArea.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            let dt = e.dataTransfer;
+            let files = dt.files;
+            handleFiles(files);
+        }
+
+        // --- Core file handling logic ---
+        fileUpload.addEventListener('change', (event) => {
+            handleFiles(event.target.files);
+        });
+
+        async function handleFiles(files) {
+            if (files.length === 0) return;
+
+            // Show results area and hide placeholder
+            resultsArea.classList.remove('hidden');
+            placeholderArea.classList.add('hidden');
+
+            statusMessage.textContent = `Processing ${files.length} file(s)...`;
+            let successCount = 0;
+            let errorCount = 0;
+
+            const filePromises = Array.from(files).map(file => {
+                return new Promise((resolve) => {
+                    // Check if file is a JSON file
+                    if (!file.name.toLowerCase().endsWith('.json') || file.type !== 'application/json') {
+                         addFileToList(file.name, null, 'Error: Not a valid JSON file.');
+                         errorCount++;
+                         resolve();
+                         return;
+                    }
+                    
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const jsonContent = JSON.parse(e.target.result);
+                            const yamlContent = jsyaml.dump(jsonContent);
+                            const newFileName = file.name.replace(/\.json$/i, '.yaml');
+
+                            convertedFiles.push({ name: newFileName, content: yamlContent });
+                            addFileToList(file.name, newFileName, yamlContent);
+                            successCount++;
+                        } catch (error) {
+                            addFileToList(file.name, null, `Error: Invalid JSON format. ${error.message}`);
+                            errorCount++;
+                        }
+                        resolve();
+                    };
+                    reader.onerror = () => {
+                        addFileToList(file.name, null, 'Error: Could not read file.');
+                        errorCount++;
+                        resolve();
+                    };
+                    reader.readAsText(file);
+                });
+            });
+
+            await Promise.all(filePromises);
+
+            // Update status message after all files are processed
+            let status = `${successCount} file(s) converted successfully.`;
+            if (errorCount > 0) {
+                 status += ` ${errorCount} file(s) failed.`;
+            }
+            statusMessage.textContent = status;
+
+            updateButtons();
+        }
+
+        function addFileToList(originalName, newName, contentOrError) {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item p-4 bg-gray-700 rounded-lg flex items-center justify-between shadow';
+            
+            const isError = newName === null;
+
+            let fileInfoHtml = `
+                <div class="flex items-center overflow-hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="flex-shrink-0 mr-3 ${isError ? 'text-red-400' : 'text-green-400'}" viewBox="0 0 16 16">
+                        ${isError ? '<path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5m.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/>' : '<path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425z"/>'}
+                    </svg>
+                    <div class="overflow-hidden">
+                        <p class="font-semibold text-white truncate" title="${originalName}">${originalName}</p>
+                        <p class="text-sm ${isError ? 'text-red-400' : 'text-gray-400'} truncate">${isError ? contentOrError : newName}</p>
+                    </div>
+                </div>
+            `;
+            
+            if (!isError) {
+                fileInfoHtml += `
+                    <button class="download-btn ml-4 px-3 py-1 bg-gray-600 hover:bg-indigo-600 text-white text-sm font-semibold rounded-md transition-colors flex-shrink-0" data-filename="${newName}">
+                        Download
+                    </button>
+                `;
+            }
+
+            fileItem.innerHTML = fileInfoHtml;
+            fileList.appendChild(fileItem);
+        }
+
+        // --- Button Event Listeners ---
+        fileList.addEventListener('click', (event) => {
+            if (event.target.classList.contains('download-btn')) {
+                const fileName = event.target.dataset.filename;
+                const fileData = convertedFiles.find(f => f.name === fileName);
+                if (fileData) {
+                    downloadFile(fileData.name, fileData.content);
+                }
+            }
+        });
+
+        downloadZipBtn.addEventListener('click', () => {
+            if (convertedFiles.length === 0) return;
+
+            statusMessage.textContent = 'Creating ZIP file...';
+            const zip = new JSZip();
+            convertedFiles.forEach(file => {
+                zip.file(file.name, file.content);
+            });
+
+            zip.generateAsync({ type: 'blob' })
+                .then(function(content) {
+                    downloadFile('converted_files.zip', content);
+                    statusMessage.textContent = 'ZIP file ready for download.';
+                })
+                .catch(err => {
+                    statusMessage.textContent = `Error creating ZIP file: ${err.message}`;
+                });
+        });
+        
+        clearAllBtn.addEventListener('click', () => {
+            convertedFiles = [];
+            fileList.innerHTML = '';
+            fileUpload.value = ''; // Reset file input
+            updateButtons();
+            statusMessage.textContent = '';
+            resultsArea.classList.add('hidden');
+            placeholderArea.classList.remove('hidden');
+        });
+
+        function updateButtons() {
+            downloadZipBtn.disabled = convertedFiles.length === 0;
+        }
+
+        function downloadFile(filename, content) {
+            const blob = content instanceof Blob ? content : new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        }
+    </script>
+</body>
+</html>
