@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON to YAML Batch Converter</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- THEME DEFINITION USING CSS VARIABLES --- */
+        :root {
+            /* Dark Mode Colors (Default) */
+            --bg-color: #0d1117;
+            --panel-bg-color: #161b22;
+            --border-color: #30363d;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --text-accent: #58a6ff;
+            --success-color: #3fb950;
+            --error-color: #f85149;
+            --hover-bg: rgba(88, 166, 255, 0.1);
+            --scrollbar-thumb: #21262d;
+            --scrollbar-track: #0d1117;
+        }
+
+        .light-mode {
+            /* Light Mode Color Overrides */
+            --bg-color: #f9fafb;
+            --panel-bg-color: #ffffff;
+            --border-color: #e5e7eb;
+            --text-primary: #111827;
+            --text-secondary: #6b7280;
+            --text-accent: #4f46e5;
+            --success-color: #16a34a;
+            --error-color: #dc2626;
+            --hover-bg: rgba(79, 70, 229, 0.05);
+            --scrollbar-thumb: #d1d5db;
+            --scrollbar-track: #f3f4f6;
+        }
+
+        /* --- BASE & ELEMENT STYLING --- */
+        body {
+            font-family: 'VT323', monospace;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        h1, h2 {
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-accent);
+        }
+        p { color: var(--text-secondary); }
+        .panel {
+            background-color: var(--panel-bg-color);
+            border: 1px solid var(--border-color);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        .theme-button, button, .custom-file-upload {
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            transition: all 0.2s ease-in-out;
+        }
+        .theme-button {
+             width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9999px;
+            background-color: var(--panel-bg-color);
+            font-size: 1.25rem;
+            line-height: 1;
+        }
+        button:hover, .custom-file-upload:hover, .theme-button:hover {
+            background-color: var(--hover-bg);
+            border-color: var(--text-accent);
+        }
+        #clear-all-btn:hover { border-color: var(--error-color); }
+        button:disabled {
+            background-color: transparent !important;
+            color: var(--text-secondary);
+            border-color: var(--border-color);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        footer a { color: var(--text-accent); }
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+        .file-item:first-child { border-top: none; }
+        .file-item .truncate { font-size: 1.1rem; }
+        .file-item.success .truncate::before { content: '[OK] '; color: var(--success-color); }
+        .file-item.error .truncate { color: var(--error-color); }
+        .file-item.error .truncate::before { content: '[!!] '; color: var(--error-color); }
+        .download-btn { border: none; padding: 0.1rem 0.5rem; margin-left: 1rem; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+        ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 0; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+
+        /* --- Animations --- */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .file-item { animation: fadeIn 0.3s ease-in-out forwards; }
+        @keyframes button-press { 0% { transform: scale(1); } 50% { transform: scale(0.95); } 100% { transform: scale(1); } }
+        .animate-press { animation: button-press 0.2s ease-in-out; }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <div class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 flex flex-col relative">
+        <!-- Theme Toggle Button -->
+        <div class="absolute top-4 right-4 sm:top-6 sm:right-6 lg:top-8 lg:right-8 z-10">
+            <button id="color-scheme-toggle" title="Toggle Light/Dark Mode" class="theme-button">O</button>
+        </div>
+
+        <!-- Header Section -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl sm:text-5xl font-bold mb-2">JSON to YAML Converter</h1>
+            <p class="text-lg">Upload multiple files, convert, and download.</p>
+        </header>
+
+        <main class="flex-grow flex flex-col panel shadow-2xl overflow-hidden">
+            <!-- File Upload Section -->
+            <div id="upload-area" class="p-8 border-b-2" style="border-color: var(--border-color);">
+                <div class="flex items-center justify-center w-full">
+                    <label for="file-upload" class="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg custom-file-upload" style="border-color: var(--border-color);">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <p class="mb-2 text-lg"><span class="font-semibold">Click to upload</span> or drag and drop</p>
+                            <p class="text-xs">Select one or more JSON files</p>
+                        </div>
+                        <input id="file-upload" type="file" class="hidden" multiple accept=".json" />
+                    </label>
+                </div> 
+            </div>
+
+            <!-- Conversion and Download Section -->
+            <div id="results-area" class="flex-grow p-8 flex flex-col overflow-hidden hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold">Converted Files</h2>
+                    <div class="space-x-2">
+                         <button id="clear-all-btn" class="px-4 py-2 rounded-lg shadow-md transition-all duration-200">
+                            Clear All
+                        </button>
+                        <button id="download-zip-btn" disabled class="px-4 py-2 rounded-lg shadow-md transition-all duration-200">
+                            Download All as ZIP
+                        </button>
+                    </div>
+                </div>
+                <div id="file-list" class="flex-grow overflow-y-auto pr-2 -mr-2 space-y-px" style="border-top: 1px solid var(--border-color);">
+                    <!-- Converted files will be dynamically added here -->
+                </div>
+                <div id="status-message" class="mt-4 text-center h-5"></div>
+            </div>
+             <div id="placeholder-area" class="flex-grow p-8 flex flex-col items-center justify-center">
+                <p>Your converted files will appear here.</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-center py-4">
+        <p>Made by <a href="https://github.com/navuxneeth" target="_blank" rel="noopener noreferrer" class="font-medium">Navaneeth Sankar K P</a></p>
+    </footer>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const fileUpload = document.getElementById('file-upload');
+        const fileList = document.getElementById('file-list');
+        const downloadZipBtn = document.getElementById('download-zip-btn');
+        const clearAllBtn = document.getElementById('clear-all-btn');
+        const statusMessage = document.getElementById('status-message');
+        const resultsArea = document.getElementById('results-area');
+        const placeholderArea = document.getElementById('placeholder-area');
+        const colorSchemeToggle = document.getElementById('color-scheme-toggle');
+        const body = document.body;
+        
+        let convertedFiles = [];
+
+        // --- Theme Switcher ---
+        if (localStorage.getItem('colorScheme') === 'light') {
+            body.classList.add('light-mode');
+        }
+
+        colorSchemeToggle.addEventListener('click', (e) => {
+            body.classList.toggle('light-mode');
+            localStorage.setItem('colorScheme', body.classList.contains('light-mode') ? 'light' : 'dark');
+            animateButton(e.currentTarget);
+        });
+
+        // --- Drag and Drop functionality ---
+        const dropArea = document.querySelector('.custom-file-upload');
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+        ['dragenter', 'dragover'].forEach(eventName => dropArea.addEventListener(eventName, () => dropArea.style.borderColor = 'var(--text-accent)', false));
+        ['dragleave', 'drop'].forEach(eventName => dropArea.addEventListener(eventName, () => dropArea.style.borderColor = 'var(--border-color)', false));
+        dropArea.addEventListener('drop', (e) => {
+            dropArea.style.borderColor = 'var(--border-color)';
+            handleFiles(e.dataTransfer.files);
+        }, false);
+
+        // --- Core file handling logic ---
+        fileUpload.addEventListener('change', (event) => handleFiles(event.target.files));
+
+        async function handleFiles(files) {
+            if (files.length === 0) return;
+            resultsArea.classList.remove('hidden');
+            placeholderArea.classList.add('hidden');
+            typeMessage(statusMessage, `Processing ${files.length} file(s)...`);
+            
+            const filePromises = Array.from(files).map(processFile);
+            const results = await Promise.all(filePromises);
+
+            let successCount = 0;
+            results.forEach(res => {
+                if(res.success) successCount++;
+                addFileToList(res.originalName, res.newName, res.contentOrError);
+            });
+
+            let errorCount = files.length - successCount;
+            let status = `${successCount} file(s) converted successfully.`;
+            if (errorCount > 0) status += ` ${errorCount} file(s) failed.`;
+            typeMessage(statusMessage, status);
+            updateButtons();
+        }
+        
+        function processFile(file) {
+             return new Promise((resolve) => {
+                if (!file.name.toLowerCase().endsWith('.json')) {
+                     resolve({ success: false, originalName: file.name, newName: null, contentOrError: 'Error: Not a JSON file.' });
+                     return;
+                }
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const jsonContent = JSON.parse(e.target.result);
+                        const yamlContent = jsyaml.dump(jsonContent);
+                        const newFileName = file.name.replace(/\.json$/i, '.yaml');
+                        convertedFiles.push({ name: newFileName, content: yamlContent });
+                        resolve({ success: true, originalName: file.name, newName: newFileName, contentOrError: yamlContent });
+                    } catch (error) {
+                        resolve({ success: false, originalName: file.name, newName: null, contentOrError: 'Error: Invalid JSON format.'});
+                    }
+                };
+                reader.onerror = () => {
+                     resolve({ success: false, originalName: file.name, newName: null, contentOrError: 'Error: Could not read file.'});
+                };
+                reader.readAsText(file);
+            });
+        }
+
+        function addFileToList(originalName, newName, contentOrError) {
+            const fileItem = document.createElement('div');
+            const isError = newName === null;
+            fileItem.className = isError ? 'file-item error' : 'file-item success';
+            
+            let fileInfoHtml = `
+                <div class="overflow-hidden">
+                    <p class="truncate" title="${originalName}">${originalName}</p>
+                </div>
+            `;
+            
+            if (!isError) {
+                fileInfoHtml += `
+                    <button class="download-btn" data-filename="${newName}">
+                        Download
+                    </button>
+                `;
+            }
+
+            fileItem.innerHTML = fileInfoHtml;
+            fileList.appendChild(fileItem);
+        }
+
+        // --- Button Event Listeners & Animations ---
+        [downloadZipBtn, clearAllBtn].forEach(btn => {
+            btn.addEventListener('click', e => animateButton(e.currentTarget));
+        });
+
+        fileList.addEventListener('click', (event) => {
+            if (event.target.classList.contains('download-btn')) {
+                animateButton(event.target);
+                const fileName = event.target.dataset.filename;
+                const fileData = convertedFiles.find(f => f.name === fileName);
+                if (fileData) downloadFile(fileData.name, fileData.content);
+            }
+        });
+
+        downloadZipBtn.addEventListener('click', () => {
+            if (convertedFiles.length === 0) return;
+            typeMessage(statusMessage, 'Creating ZIP file...');
+            const zip = new JSZip();
+            convertedFiles.forEach(file => zip.file(file.name, file.content));
+
+            zip.generateAsync({ type: 'blob' })
+                .then(content => {
+                    downloadFile('converted_files.zip', content);
+                    typeMessage(statusMessage, 'ZIP file ready for download.');
+                })
+                .catch(err => typeMessage(statusMessage, `Error creating ZIP file: ${err.message}`));
+        });
+        
+        clearAllBtn.addEventListener('click', () => {
+            convertedFiles = [];
+            fileList.innerHTML = '';
+            fileUpload.value = '';
+            updateButtons();
+            statusMessage.textContent = '';
+            resultsArea.classList.add('hidden');
+            placeholderArea.classList.remove('hidden');
+        });
+
+        // --- Utility Functions ---
+        function animateButton(btn) {
+            btn.classList.add('animate-press');
+            setTimeout(() => btn.classList.remove('animate-press'), 200);
+        }
+
+        function updateButtons() {
+            downloadZipBtn.disabled = convertedFiles.length === 0;
+        }
+
+        function downloadFile(filename, content) {
+            const blob = content instanceof Blob ? content : new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        }
+
+        let typeTimeout;
+        function typeMessage(element, text, speed = 25) {
+            clearTimeout(typeTimeout);
+            element.textContent = '';
+            let i = 0;
+            function typing() {
+                if (i < text.length) {
+                    element.textContent += text.charAt(i);
+                    i++;
+                    typeTimeout = setTimeout(typing, speed);
+                }
+            }
+            typing();
+        }
+    });
+    </script>
+</body>
+</html>
+
